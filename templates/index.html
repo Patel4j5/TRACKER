@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Prediction App</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            color: #212529;
+        }
+        .header {
+            background-color: #343a40;
+            color: white;
+            padding: 20px 0;
+            margin-bottom: 30px;
+        }
+        .prediction-card {
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+            margin-bottom: 20px;
+        }
+        .prediction-card:hover {
+            transform: translateY(-5px);
+        }
+        .metrics-card {
+            background-color: #f8f9fa;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 5px solid #3498db;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .price-up {
+            color: #28a745;
+        }
+        .price-down {
+            color: #dc3545;
+        }
+        .container {
+            max-width: 1200px;
+        }
+        .form-control:focus {
+            border-color: #6c757d;
+            box-shadow: 0 0 0 0.25rem rgba(108, 117, 125, 0.25);
+        }
+        .btn-primary {
+            background-color: #343a40;
+            border-color: #343a40;
+        }
+        .btn-primary:hover {
+            background-color: #212529;
+            border-color: #212529;
+        }
+    </style>
+</head>
+<body>
+    <div class="header text-center">
+        <h1>Stock Price Prediction Tool</h1>
+        <p class="lead">Get advanced price predictions using machine learning models</p>
+    </div>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card mb-4 shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">Enter Stock Ticker</h5>
+                        <form id="predictionForm" class="row g-3 align-items-center">
+                            <div class="col-md-8">
+                                <input type="text" class="form-control" id="ticker" name="ticker" placeholder="Enter stock ticker (e.g., AAPL, MSFT, GOOG)" required>
+                            </div>
+                            <div class="col-md-4">
+                                <button type="submit" class="btn btn-primary w-100">Generate Prediction</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="loadingSection" style="display: none;" class="text-center">
+            <div class="loader"></div>
+            <p>Generating prediction... This may take a moment.</p>
+        </div>
+
+        <div id="errorSection" style="display: none;" class="alert alert-danger" role="alert"></div>
+
+        <div id="resultSection" style="display: none;">
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="card prediction-card">
+                        <div class="card-body">
+                            <h4 class="card-title mb-4" id="stockTitle"></h4>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card mb-3">
+                                        <div class="card-body">
+                                            <h5 class="card-title">Current Price</h5>
+                                            <h3 id="currentPrice" class="mb-0"></h3>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card mb-3">
+                                        <div class="card-body">
+                                            <h5 class="card-title">Predicted in 7 Days</h5>
+                                            <h3 id="predictedPrice" class="mb-0"></h3>
+                                            <p id="priceChange" class="mb-0"></p>
+                                            <small class="text-muted">Confidence Range: <span id="confidenceRange"></span></small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="card prediction-card">
+                        <div class="card-body">
+                            <h4 class="card-title mb-4">Price Prediction Chart</h4>
+                            <img id="predictionChart" class="img-fluid" alt="Price Prediction Chart">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="card prediction-card">
+                        <div class="card-body">
+                            <h4 class="card-title mb-4">Model Performance Metrics</h4>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="card metrics-card mb-3">
+                                        <div class="card-body">
+                                            <h5 class="card-title">Moving Average</h5>
+                                            <p class="mb-1">MAE: <span id="maMAE"></span></p>
+                                            <p class="mb-0">R²: <span id="maR2"></span></p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card metrics-card mb-3">
+                                        <div class="card-body">
+                                            <h5 class="card-title">Linear Regression</h5>
+                                            <p class="mb-1">MAE: <span id="lrMAE"></span></p>
+                                            <p class="mb-0">R²: <span id="lrR2"></span></p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card metrics-card mb-3">
+                                        <div class="card-body">
+                                            <h5 class="card-title">Polynomial Regression</h5>
+                                            <p class="mb-1">MAE: <span id="polyMAE"></span></p>
+                                            <p class="mb-0">R²: <span id="polyR2"></span></p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card metrics-card mb-3">
+                                        <div class="card-body">
+                                            <h5 class="card-title">Random Forest</h5>
+                                            <p class="mb-1">MAE: <span id="rfMAE"></span></p>
+                                            <p class="mb-0">R²: <span id="rfR2"></span></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Portfolio Tracker Card -->
+        <div class="card mb-4 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title mb-3">Portfolio Tracker</h5>
+                <ul class="nav nav-tabs" id="portfolioTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="view-tab" data-bs-toggle="tab" data-bs-target="#view" type="button" role="tab" aria-controls="view" aria-selected="true">View Portfolio</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="add-tab" data-bs-toggle="tab" data-bs-target="#add" type="button" role="tab" aria-controls="add" aria-selected="false">Add Stock</button>
+                    </li>
+                </ul>
+                <div class="tab-content mt-3" id="portfolioTabContent">
+                    <div class="tab-pane fade show active" id="view" role="tabpanel" aria-labelledby="view-tab">
+                        <div id="portfolioLoading" class="text-center" style="display: none;">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                        <div id="portfolioError" style="display: none;" class="alert alert-danger" role="alert"></div>
+                        <div id="portfolioContent">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5>Your Stock Portfolio</h5>
+                                <button id="refreshPortfolio" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                                </button>
+                            </div>
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <h6>Total Equity</h6>
+                                            <h4 id="totalEquity">$0.00</h4>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <h6>Current Value</h6>
+                                            <h4 id="totalValue">$0.00</h4>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <h6>Total Growth</h6>
+                                            <h4 id="totalGrowth">0.00%</h4>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Ticker</th>
+                                            <th>Shares</th>
+                                            <th>Cost Basis</th>
+                                            <th>Equity</th>
+                                            <th>Current Price</th>
+                                            <th>Current Value</th>
+                                            <th>Growth %</th>
+                                            <th>7-Day Prediction</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="portfolioTable">
+                                        <!-- Portfolio data will be loaded here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p class="text-muted small">Last updated: <span id="lastUpdated"></span></p>
+                        </div>
+
+                        <!-- 7-Day Portfolio Forecast & Suggestions -->
+                        <div class="card mt-4">
+                            <div class="card-body">
+                                <h5 class="card-title mb-3">7-Day Portfolio Forecast & Recommendations</h5>
+                                <div class="row mb-4">
+                                    <div class="col-md-4">
+                                        <div class="card metrics-card">
+                                            <div class="card-body">
+                                                <h6>Current Portfolio Value</h6>
+                                                <h4 id="portfolioCurrentValue">$0.00</h4>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card metrics-card">
+                                            <div class="card-body">
+                                                <h6>Predicted 7-Day Value</h6>
+                                                <h4 id="portfolioPredictedValue">$0.00</h4>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card metrics-card">
+                                            <div class="card-body">
+                                                <h6>Expected Growth</h6>
+                                                <h4 id="portfolioGrowth">0.00%</h4>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <h6 class="mb-3">Rebalancing Suggestions</h6>
+                                <div id="portfolioSuggestions" class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Ticker</th>
+                                                <th>Action</th>
+                                                <th>Reason</th>
+                                                <th>Confidence</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="suggestionsTable">
+                                            <!-- Suggestions will be populated here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- End 7-Day Portfolio Forecast & Suggestions -->
+
+                    </div>
+                    <div class="tab-pane fade" id="add" role="tabpanel" aria-labelledby="add-tab">
+                        <form id="addStockForm" class="row g-3">
+                            <div class="col-md-4">
+                                <label for="stockTicker" class="form-label">Ticker Symbol</label>
+                                <input type="text" class="form-control" id="stockTicker" name="ticker" placeholder="e.g., AAPL" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="stockShares" class="form-label">Number of Shares</label>
+                                <input type="number" class="form-control" id="stockShares" name="shares" step="0.01" min="0.01" placeholder="e.g., 10" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="stockCostBasis" class="form-label">Cost Basis per Share</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" class="form-control" id="stockCostBasis" name="cost_basis" step="0.01" min="0.01" placeholder="e.g., 150.00" required>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary">Add to Portfolio</button>
+                            </div>
+                        </form>
+                        <div id="addStockError" class="mt-3 alert alert-danger" style="display: none;"></div>
+                        <div id="addStockSuccess" class="mt-3 alert alert-success" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- End Portfolio Tracker Card -->
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('predictionForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const ticker = document.getElementById('ticker').value.trim();
+            if (!ticker) {
+                showError("Please enter a valid ticker symbol.");
+                return;
+            }
+            document.getElementById('loadingSection').style.display = 'block';
+            document.getElementById('resultSection').style.display = 'none';
+            document.getElementById('errorSection').style.display = 'none';
+            const formData = new FormData();
+            formData.append('ticker', ticker);
+            fetch('/predict', {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin'
+            })
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+                document.getElementById('loadingSection').style.display = 'none';
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+                document.getElementById('stockTitle').textContent = `${data.ticker} Stock Prediction`;
+                document.getElementById('currentPrice').textContent = `$${data.price_data.latest_price}`;
+                document.getElementById('predictedPrice').textContent = `$${data.price_data.future_price}`;
+                const priceChangeElement = document.getElementById('priceChange');
+                if (data.price_data.percent_change > 0) {
+                    priceChangeElement.textContent = `+${data.price_data.percent_change}%`;
+                    priceChangeElement.className = 'mb-0 price-up';
+                } else {
+                    priceChangeElement.textContent = `${data.price_data.percent_change}%`;
+                    priceChangeElement.className = 'mb-0 price-down';
+                }
+                document.getElementById('confidenceRange').textContent =
+                    `$${data.price_data.lower_band} to $${data.price_data.upper_band}`;
+                document.getElementById('predictionChart').src = 'data:image/png;base64,' + data.plot_url;
+                document.getElementById('maMAE').textContent = data.metrics.ma.mae;
+                document.getElementById('maR2').textContent = data.metrics.ma.r2;
+                document.getElementById('lrMAE').textContent = data.metrics.lr.mae;
+                document.getElementById('lrR2').textContent = data.metrics.lr.r2;
+                document.getElementById('polyMAE').textContent = data.metrics.poly.mae;
+                document.getElementById('polyR2').textContent = data.metrics.poly.r2;
+                document.getElementById('rfMAE').textContent = data.metrics.rf.mae;
+                document.getElementById('rfR2').textContent = data.metrics.rf.r2;
+                document.getElementById('resultSection').style.display = 'block';
+                document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
+            })
+            .catch(error => {
+                document.getElementById('loadingSection').style.display = 'none';
+                showError("An error occurred while processing your request: " + error.message);
+                console.error('Error:', error);
+            });
+        });
+
+        function showError(message) {
+            const errorSection = document.getElementById('errorSection');
+            errorSection.textContent = message;
+            errorSection.style.display = 'block';
+        }
+
+        // Portfolio functions
+        function loadPortfolio() {
+            document.getElementById('portfolioLoading').style.display = 'block';
+            document.getElementById('portfolioContent').style.display = 'none';
+            document.getElementById('portfolioError').style.display = 'none';
+            fetch('/portfolio')
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    document.getElementById('portfolioLoading').style.display = 'none';
+                    if (data.error) {
+                        showPortfolioError(data.error);
+                        return;
+                    }
+                    document.getElementById('totalEquity').textContent = `$${data.total_equity || 0}`;
+                    document.getElementById('totalValue').textContent = `$${data.total_current_value || 0}`;
+                    const growthElement = document.getElementById('totalGrowth');
+                    const growth = data.portfolio_growth || 0;
+                    growthElement.textContent = `${growth > 0 ? '+' : ''}${growth}%`;
+                    growthElement.className = growth >= 0 ? 'price-up' : 'price-down';
+                    document.getElementById('lastUpdated').textContent = data.last_updated || 'Never';
+                    const tableBody = document.getElementById('portfolioTable');
+                    tableBody.innerHTML = '';
+                    const stocks = data.stocks || {};
+                    if (Object.keys(stocks).length === 0) {
+                        tableBody.innerHTML = `
+                            <tr>
+                                <td colspan="9" class="text-center">No stocks in portfolio. Add a stock to get started.</td>
+                            </tr>
+                        `;
+                    } else {
+                        for (const ticker in stocks) {
+                            const stock = stocks[ticker];
+                            const growthClass = stock.growth >= 0 ? 'price-up' : 'price-down';
+                            const futureGrowthClass = (stock.future_growth >= 0) ? 'price-up' : 'price-down';
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${stock.ticker}</td>
+                                <td>${stock.shares}</td>
+                                <td>$${stock.cost_basis}</td>
+                                <td>$${stock.equity}</td>
+                                <td>$${stock.current_price}</td>
+                                <td>$${stock.current_value}</td>
+                                <td class="${growthClass}">${stock.growth > 0 ? '+' : ''}${stock.growth}%</td>
+                                <td class="${futureGrowthClass}">
+                                    ${stock.future_price ? `$${stock.future_price} (${stock.future_growth > 0 ? '+' : ''}${stock.future_growth}%)` : 'N/A'}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-danger remove-stock" data-ticker="${stock.ticker}">Remove</button>
+                                    <button class="btn btn-sm btn-info predict-stock" data-ticker="${stock.ticker}">Predict</button>
+                                </td>
+                            `;
+                            tableBody.appendChild(row);
+                        }
+                        document.querySelectorAll('.remove-stock').forEach(button => {
+                            button.addEventListener('click', function() {
+                                removeStock(this.getAttribute('data-ticker'));
+                            });
+                        });
+                        document.querySelectorAll('.predict-stock').forEach(button => {
+                            button.addEventListener('click', function() {
+                                document.getElementById('ticker').value = this.getAttribute('data-ticker');
+                                document.getElementById('predictionForm').dispatchEvent(new Event('submit'));
+                            });
+                        });
+                    }
+                    document.getElementById('portfolioContent').style.display = 'block';
+                    loadPortfolioAnalysis();
+                })
+                .catch(error => {
+                    document.getElementById('portfolioLoading').style.display = 'none';
+                    showPortfolioError("An error occurred while loading your portfolio: " + error.message);
+                    console.error('Error:', error);
+                });
+        }
+
+        function removeStock(ticker) {
+            if (!confirm(`Are you sure you want to remove ${ticker} from your portfolio?`)) return;
+            const formData = new FormData();
+            formData.append('ticker', ticker);
+            fetch('/portfolio/remove', {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showPortfolioError(data.error);
+                } else {
+                    loadPortfolio();
+                }
+            })
+            .catch(error => {
+                showPortfolioError("An error occurred: " + error.message);
+                console.error('Error:', error);
+            });
+        }
+
+        function showPortfolioError(message) {
+            const errorElement = document.getElementById('portfolioError');
+            errorElement.textContent = message;
+            errorElement.style.display = 'block';
+            document.getElementById('portfolioContent').style.display = 'none';
+        }
+
+        document.getElementById('addStockForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            document.getElementById('addStockError').style.display = 'none';
+            document.getElementById('addStockSuccess').style.display = 'none';
+            const formData = new FormData(this);
+            fetch('/portfolio/add', {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    const errorElement = document.getElementById('addStockError');
+                    errorElement.textContent = data.error;
+                    errorElement.style.display = 'block';
+                } else {
+                    const successElement = document.getElementById('addStockSuccess');
+                    successElement.textContent = `Successfully added ${formData.get('ticker')} to your portfolio.`;
+                    successElement.style.display = 'block';
+                    this.reset();
+                    loadPortfolio();
+                    document.getElementById('view-tab').click();
+                }
+            })
+            .catch(error => {
+                const errorElement = document.getElementById('addStockError');
+                errorElement.textContent = "An error occurred: " + error.message;
+                errorElement.style.display = 'block';
+                console.error('Error:', error);
+            });
+        });
+
+        document.getElementById('refreshPortfolio').addEventListener('click', function() {
+            loadPortfolio();
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadPortfolio();
+        });
+
+        // Portfolio Analysis and Suggestions
+        function loadPortfolioAnalysis() {
+            fetch('/portfolio/analysis')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error(data.error);
+                        return;
+                    }
+                    document.getElementById('portfolioCurrentValue').textContent = `$${data.current_value.toFixed(2)}`;
+                    document.getElementById('portfolioPredictedValue').textContent = `$${data.predicted_value.toFixed(2)}`;
+                    const growthElement = document.getElementById('portfolioGrowth');
+                    growthElement.textContent = `${data.predicted_growth >= 0 ? '+' : ''}${data.predicted_growth.toFixed(2)}%`;
+                    growthElement.className = data.predicted_growth >= 0 ? 'price-up' : 'price-down';
+                    const tableBody = document.getElementById('suggestionsTable');
+                    tableBody.innerHTML = '';
+                    if (!data.suggestions || data.suggestions.length === 0) {
+                        tableBody.innerHTML = `
+                            <tr>
+                                <td colspan="4" class="text-center">No strong rebalancing suggestions at this time</td>
+                            </tr>
+                        `;
+                    } else {
+                        data.suggestions.forEach(suggestion => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${suggestion.ticker}</td>
+                                <td><span class="badge ${suggestion.action === 'buy' ? 'bg-success' : 'bg-danger'}">${suggestion.action.toUpperCase()}</span></td>
+                                <td>${suggestion.reason}</td>
+                                <td>${suggestion.confidence || 'N/A'}/5</td>
+                            `;
+                            tableBody.appendChild(row);
+                        });
+                    }
+                })
+                .catch(error => console.error('Error loading analysis:', error));
+        }
+    </script>
+</body>
+</html>
