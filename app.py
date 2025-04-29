@@ -614,5 +614,6 @@ def update_portfolio_prices(portfolio):
     
     return portfolio
 
-if __name__ == '__main__':
-    app.run(debug=True, port=5001)  # Change 5001 to any available port
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
